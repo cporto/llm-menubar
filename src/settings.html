@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>oMLX Menubar — Settings</title>
+<title>LLM Menubar — Settings</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -84,8 +84,52 @@
     user-select: text;
   }
 
-  input:focus {
+  input:focus, select:focus {
     border-color: #5a9fff;
+  }
+
+  .select-wrap {
+    position: relative;
+  }
+
+  .select-wrap::before {
+    content: "";
+    position: absolute;
+    top: 6px;
+    bottom: 6px;
+    right: 34px;
+    width: 1px;
+    background: #3a3a3a;
+    pointer-events: none;
+  }
+
+  .select-wrap::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    right: 13px;
+    width: 0;
+    height: 0;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 6px solid #c4c4c4;
+    transform: translateY(-50%);
+    pointer-events: none;
+  }
+
+  select {
+    width: 100%;
+    padding: 7px 44px 7px 10px;
+    font-size: 13px;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+    color: #e0e0e0;
+    background: #2a2a2a;
+    border: 1px solid #3a3a3a;
+    border-radius: 6px;
+    outline: none;
+    transition: border-color 0.15s;
+    -webkit-appearance: none;
+    appearance: none;
   }
 
   .hint {
@@ -141,15 +185,26 @@
 
   <div class="content">
     <div class="field">
+      <label>Server Type</label>
+      <div class="select-wrap">
+        <select id="server_type">
+          <option value="omlx">oMLX</option>
+          <option value="llamacpp">llama.cpp</option>
+        </select>
+      </div>
+      <div class="hint">Controls how models are listed and loaded</div>
+    </div>
+
+    <div class="field">
       <label>API URL</label>
       <input type="text" id="api_url" placeholder="http://127.0.0.1:8000/v1">
-      <div class="hint">The oMLX OpenAI-compatible API endpoint</div>
+      <div class="hint" id="hint_api_url">The oMLX OpenAI-compatible API endpoint</div>
     </div>
 
     <div class="field">
       <label>API Key</label>
       <input type="password" id="api_key" placeholder="Leave empty if not required">
-      <div class="hint">Set in oMLX dashboard under Settings → API Key</div>
+      <div class="hint" id="hint_api_key">Set in oMLX dashboard under Settings → API Key</div>
     </div>
 
     <div class="field">
@@ -167,7 +222,7 @@
     <div class="field">
       <label>Dashboard URL</label>
       <input type="text" id="dashboard_url" placeholder="http://127.0.0.1:8000/admin">
-      <div class="hint">Opened in your browser when oMLX starts</div>
+      <div class="hint" id="hint_dashboard_url">Opened in your browser when the server starts</div>
     </div>
 
     <div class="field">
@@ -187,7 +242,57 @@
 <script>
   const { invoke } = window.__TAURI__.core;
 
-  const fields = ['api_url', 'api_key', 'service_label', 'plist_path', 'dashboard_url', 'default_model'];
+  const fields = ['server_type', 'api_url', 'api_key', 'service_label', 'plist_path', 'dashboard_url', 'default_model'];
+
+  // Known-good defaults per backend. Switching the dropdown prefills these,
+  // but only into fields that are empty or still hold the OTHER backend's
+  // default — never clobbering a value you've deliberately customized.
+  const profiles = {
+    omlx: {
+      api_url: 'http://127.0.0.1:8000/v1',
+      service_label: 'ai.omlx.server',
+      plist_path: '~/Library/LaunchAgents/ai.omlx.server.plist',
+      dashboard_url: 'http://127.0.0.1:8000/admin',
+    },
+    llamacpp: {
+      api_url: 'http://127.0.0.1:8080',
+      service_label: 'com.llama.server',
+      plist_path: '~/Library/LaunchAgents/com.llama.server.plist',
+      dashboard_url: 'http://127.0.0.1:8080',
+    },
+  };
+
+  const profileKeys = ['api_url', 'service_label', 'plist_path', 'dashboard_url'];
+
+  function applyProfileDefaults(target) {
+    const want = profiles[target];
+    const other = profiles[target === 'omlx' ? 'llamacpp' : 'omlx'];
+    for (const k of profileKeys) {
+      const el = document.getElementById(k);
+      const cur = el.value.trim();
+      if (cur === '' || cur === other[k]) {
+        el.value = want[k];
+      }
+    }
+  }
+
+  function updateHints() {
+    const isLlama = document.getElementById('server_type').value === 'llamacpp';
+    document.getElementById('hint_api_url').textContent = isLlama
+      ? 'The llama.cpp server URL (e.g. http://127.0.0.1:8080)'
+      : 'The oMLX OpenAI-compatible API endpoint';
+    document.getElementById('hint_api_key').textContent = isLlama
+      ? 'Not required for llama.cpp'
+      : 'Set in oMLX dashboard under Settings → API Key';
+    document.getElementById('hint_dashboard_url').textContent = isLlama
+      ? 'Opened in your browser when llama.cpp starts'
+      : 'Opened in your browser when oMLX starts';
+  }
+
+  document.getElementById('server_type').addEventListener('change', (e) => {
+    applyProfileDefaults(e.target.value);
+    updateHints();
+  });
 
   async function loadConfig() {
     try {
@@ -195,6 +300,7 @@
       for (const f of fields) {
         document.getElementById(f).value = config[f] || '';
       }
+      updateHints();
     } catch (e) {
       console.error('Failed to load config:', e);
     }
