@@ -88,9 +88,38 @@
     border-color: #5a9fff;
   }
 
+  .select-wrap {
+    position: relative;
+  }
+
+  .select-wrap::before {
+    content: "";
+    position: absolute;
+    top: 6px;
+    bottom: 6px;
+    right: 34px;
+    width: 1px;
+    background: #3a3a3a;
+    pointer-events: none;
+  }
+
+  .select-wrap::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    right: 13px;
+    width: 0;
+    height: 0;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 6px solid #c4c4c4;
+    transform: translateY(-50%);
+    pointer-events: none;
+  }
+
   select {
     width: 100%;
-    padding: 7px 10px;
+    padding: 7px 44px 7px 10px;
     font-size: 13px;
     font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
     color: #e0e0e0;
@@ -101,9 +130,6 @@
     transition: border-color 0.15s;
     -webkit-appearance: none;
     appearance: none;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23888'/%3E%3C/svg%3E");
-    background-repeat: no-repeat;
-    background-position: right 10px center;
   }
 
   .hint {
@@ -160,10 +186,12 @@
   <div class="content">
     <div class="field">
       <label>Server Type</label>
-      <select id="server_type">
-        <option value="omlx">oMLX</option>
-        <option value="llamacpp">llama.cpp (Router Mode)</option>
-      </select>
+      <div class="select-wrap">
+        <select id="server_type">
+          <option value="omlx">oMLX</option>
+          <option value="llamacpp">llama.cpp</option>
+        </select>
+      </div>
       <div class="hint">Controls how models are listed and loaded</div>
     </div>
 
@@ -216,6 +244,38 @@
 
   const fields = ['server_type', 'api_url', 'api_key', 'service_label', 'plist_path', 'dashboard_url', 'default_model'];
 
+  // Known-good defaults per backend. Switching the dropdown prefills these,
+  // but only into fields that are empty or still hold the OTHER backend's
+  // default — never clobbering a value you've deliberately customized.
+  const profiles = {
+    omlx: {
+      api_url: 'http://127.0.0.1:8000/v1',
+      service_label: 'ai.omlx.server',
+      plist_path: '~/Library/LaunchAgents/ai.omlx.server.plist',
+      dashboard_url: 'http://127.0.0.1:8000/admin',
+    },
+    llamacpp: {
+      api_url: 'http://127.0.0.1:8080',
+      service_label: 'com.llama.server',
+      plist_path: '~/Library/LaunchAgents/com.llama.server.plist',
+      dashboard_url: 'http://127.0.0.1:8080',
+    },
+  };
+
+  const profileKeys = ['api_url', 'service_label', 'plist_path', 'dashboard_url'];
+
+  function applyProfileDefaults(target) {
+    const want = profiles[target];
+    const other = profiles[target === 'omlx' ? 'llamacpp' : 'omlx'];
+    for (const k of profileKeys) {
+      const el = document.getElementById(k);
+      const cur = el.value.trim();
+      if (cur === '' || cur === other[k]) {
+        el.value = want[k];
+      }
+    }
+  }
+
   function updateHints() {
     const isLlama = document.getElementById('server_type').value === 'llamacpp';
     document.getElementById('hint_api_url').textContent = isLlama
@@ -229,7 +289,10 @@
       : 'Opened in your browser when oMLX starts';
   }
 
-  document.getElementById('server_type').addEventListener('change', updateHints);
+  document.getElementById('server_type').addEventListener('change', (e) => {
+    applyProfileDefaults(e.target.value);
+    updateHints();
+  });
 
   async function loadConfig() {
     try {
