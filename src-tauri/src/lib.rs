@@ -11,7 +11,7 @@ use log::{info, warn};
 
 mod omlx_manager;
 mod config;
-use omlx_manager::OmlxManager;
+use omlx_manager::ServerManager;
 use config::AppConfig;
 
 const ICON_ON_PNG: &[u8] = include_bytes!("../icons/tray-on.png");
@@ -32,7 +32,7 @@ fn png_to_tauri_image(png_bytes: &[u8]) -> Image<'static> {
 }
 
 struct AppState {
-    manager: Arc<OmlxManager>,
+    manager: Arc<ServerManager>,
     status_item: MenuItem<tauri::Wry>,
     animating: Arc<AtomicBool>,
     dashboard_url: String,
@@ -46,7 +46,7 @@ fn set_tray_icon(app: &AppHandle, icon_bytes: &[u8]) {
     }
 }
 
-fn refresh_model_menu(app: &AppHandle, mgr: &Arc<OmlxManager>) {
+fn refresh_model_menu(app: &AppHandle, mgr: &Arc<ServerManager>) {
     let app = app.clone();
     let mgr = mgr.clone();
     tauri::async_runtime::spawn(async move {
@@ -112,21 +112,29 @@ fn refresh_model_menu(app: &AppHandle, mgr: &Arc<OmlxManager>) {
 
 fn update_tray(app: &AppHandle, running: bool, model: &str) {
     let state = app.state::<AppState>();
+    let mgr = &state.manager;
+
     if !state.animating.load(Ordering::Relaxed) {
         set_tray_icon(app, if running { ICON_ON_PNG } else { ICON_OFF_PNG });
     }
 
     if let Some(tray) = app.tray_by_id("main") {
         if running && !model.is_empty() {
-            tray.set_title(Some(model)).ok();
+            let prefix = mgr.display_prefix();
+            if prefix.is_empty() {
+                tray.set_title(Some(model)).ok();
+            } else {
+                tray.set_title(Some(&format!("{} {}", prefix, model))).ok();
+            }
         } else {
             tray.set_title(None::<&str>).ok();
         }
 
+        let name = mgr.display_name();
         let tooltip = if running {
-            format!("oMLX: running ({})", model)
+            format!("{}: running ({})", name, model)
         } else {
-            "oMLX: stopped".to_string()
+            format!("{}: stopped", name)
         };
         tray.set_tooltip(Some(&tooltip)).ok();
     }
@@ -171,7 +179,7 @@ fn open_settings(app_handle: &AppHandle) {
         "settings",
         tauri::WebviewUrl::App("settings.html".into()),
     )
-    .title("oMLX Menubar — Settings")
+    .title("LLM Menubar — Settings")
     .inner_size(420.0, 650.0)
     .resizable(false)
     .minimizable(false)
@@ -186,7 +194,7 @@ fn open_settings(app_handle: &AppHandle) {
     .ok();
 }
 
-fn auto_load_model(app: &AppHandle, mgr: &Arc<OmlxManager>, default_model: &str) {
+fn auto_load_model(app: &AppHandle, mgr: &Arc<ServerManager>, default_model: &str) {
     let app = app.clone();
     let mgr = mgr.clone();
     let default = default_model.to_string();
@@ -195,10 +203,8 @@ fn auto_load_model(app: &AppHandle, mgr: &Arc<OmlxManager>, default_model: &str)
             Ok(m) => m,
             Err(_) => return,
         };
-        // If a model is already loaded, nothing to do.
         if models.iter().any(|m| m.loaded) { return; }
 
-        // Pick which model to load: configured default, or first available.
         let to_load = if !default.is_empty() {
             models.iter().find(|m| m.id == default).map(|m| m.id.clone())
         } else {
@@ -216,14 +222,15 @@ fn auto_load_model(app: &AppHandle, mgr: &Arc<OmlxManager>, default_model: &str)
     });
 }
 
-fn start_and_animate(app_handle: AppHandle, mgr: Arc<OmlxManager>, animating: Arc<AtomicBool>, dashboard_url: String) {
+fn start_and_animate(app_handle: AppHandle, mgr: Arc<ServerManager>, animating: Arc<AtomicBool>, dashboard_url: String) {
     animating.store(true, Ordering::Relaxed);
 
+    let name = mgr.display_name();
     if let Some(state) = app_handle.try_state::<AppState>() {
         state.status_item.set_text("◌  Starting…".to_string()).ok();
     }
     if let Some(tray) = app_handle.tray_by_id("main") {
-        tray.set_tooltip(Some("oMLX: starting…")).ok();
+        tray.set_tooltip(Some(&format!("{}: starting…", name))).ok();
         tray.set_title(None::<&str>).ok();
     }
 
@@ -241,7 +248,7 @@ fn start_and_animate(app_handle: AppHandle, mgr: Arc<OmlxManager>, animating: Ar
                 if status.running {
                     animating.store(false, Ordering::Relaxed);
                     update_tray(&app_handle, true, &status.model);
-                    info!("oMLX is up — opening dashboard");
+                    info!("Server is up — opening dashboard");
                     open::that(&dashboard_url).ok();
                     if let Some(state) = app_handle.try_state::<AppState>() {
                         refresh_model_menu(&app_handle, &state.manager);
@@ -253,7 +260,7 @@ fn start_and_animate(app_handle: AppHandle, mgr: Arc<OmlxManager>, animating: Ar
         }
         animating.store(false, Ordering::Relaxed);
         update_tray(&app_handle, false, "");
-        warn!("oMLX didn't come up in 30s");
+        warn!("Server didn't come up in 30s");
     });
 }
 
@@ -263,7 +270,8 @@ pub fn run() {
     let cfg = AppConfig::load().expect("Failed to load config");
     info!("Config loaded from {:?}", AppConfig::config_path());
 
-    let manager = Arc::new(OmlxManager::new(
+    let manager = Arc::new(ServerManager::new(
+        &cfg.server_type,
         &cfg.api_url,
         &cfg.api_key,
         &cfg.service_label,
@@ -330,7 +338,7 @@ pub fn run() {
             let _tray = TrayIconBuilder::with_id("main")
                 .icon(icon)
                 .icon_as_template(true)
-                .tooltip("oMLX: stopped")
+                .tooltip("LLM Menubar")
                 .menu(&menu)
                 .on_menu_event(move |app_handle, event| {
                     let state = app_handle.state::<AppState>();
@@ -401,7 +409,6 @@ pub fn run() {
                 })
                 .build(app)?;
 
-            // Initial health check + model refresh on startup.
             let app_handle = app.handle().clone();
             let mgr = manager_for_setup.clone();
             tauri::async_runtime::spawn({
@@ -426,7 +433,6 @@ pub fn run() {
                     tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
                     let status = mgr.check_health().await;
                     update_tray(&app_handle, status.running, &status.model);
-                    // Refresh model list every 30s (6 ticks)
                     tick += 1;
                     if status.running && tick % 6 == 0 {
                         refresh_model_menu(&app_handle, &mgr);

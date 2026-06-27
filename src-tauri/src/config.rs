@@ -6,6 +6,9 @@ use std::os::unix::fs::PermissionsExt;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
+    #[serde(default = "default_server_type")]
+    pub server_type: String,
+
     #[serde(default = "default_api_url")]
     pub api_url: String,
 
@@ -25,6 +28,7 @@ pub struct AppConfig {
     pub default_model: String,
 }
 
+fn default_server_type() -> String { "omlx".into() }
 fn default_api_url() -> String { "http://127.0.0.1:8000/v1".into() }
 fn default_service_label() -> String { "ai.omlx.server".into() }
 fn default_dashboard_url() -> String { "http://127.0.0.1:8000/admin".into() }
@@ -39,6 +43,7 @@ fn default_plist_path() -> String {
 impl Default for AppConfig {
     fn default() -> Self {
         Self {
+            server_type: default_server_type(),
             api_url: default_api_url(),
             api_key: String::new(),
             service_label: default_service_label(),

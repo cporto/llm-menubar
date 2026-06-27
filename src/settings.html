@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>oMLX Menubar — Settings</title>
+<title>LLM Menubar — Settings</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -84,8 +84,26 @@
     user-select: text;
   }
 
-  input:focus {
+  input:focus, select:focus {
     border-color: #5a9fff;
+  }
+
+  select {
+    width: 100%;
+    padding: 7px 10px;
+    font-size: 13px;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+    color: #e0e0e0;
+    background: #2a2a2a;
+    border: 1px solid #3a3a3a;
+    border-radius: 6px;
+    outline: none;
+    transition: border-color 0.15s;
+    -webkit-appearance: none;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23888'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
   }
 
   .hint {
@@ -141,15 +159,24 @@
 
   <div class="content">
     <div class="field">
+      <label>Server Type</label>
+      <select id="server_type">
+        <option value="omlx">oMLX</option>
+        <option value="llamacpp">llama.cpp (Router Mode)</option>
+      </select>
+      <div class="hint">Controls how models are listed and loaded</div>
+    </div>
+
+    <div class="field">
       <label>API URL</label>
       <input type="text" id="api_url" placeholder="http://127.0.0.1:8000/v1">
-      <div class="hint">The oMLX OpenAI-compatible API endpoint</div>
+      <div class="hint" id="hint_api_url">The oMLX OpenAI-compatible API endpoint</div>
     </div>
 
     <div class="field">
       <label>API Key</label>
       <input type="password" id="api_key" placeholder="Leave empty if not required">
-      <div class="hint">Set in oMLX dashboard under Settings → API Key</div>
+      <div class="hint" id="hint_api_key">Set in oMLX dashboard under Settings → API Key</div>
     </div>
 
     <div class="field">
@@ -167,7 +194,7 @@
     <div class="field">
       <label>Dashboard URL</label>
       <input type="text" id="dashboard_url" placeholder="http://127.0.0.1:8000/admin">
-      <div class="hint">Opened in your browser when oMLX starts</div>
+      <div class="hint" id="hint_dashboard_url">Opened in your browser when the server starts</div>
     </div>
 
     <div class="field">
@@ -187,7 +214,22 @@
 <script>
   const { invoke } = window.__TAURI__.core;
 
-  const fields = ['api_url', 'api_key', 'service_label', 'plist_path', 'dashboard_url', 'default_model'];
+  const fields = ['server_type', 'api_url', 'api_key', 'service_label', 'plist_path', 'dashboard_url', 'default_model'];
+
+  function updateHints() {
+    const isLlama = document.getElementById('server_type').value === 'llamacpp';
+    document.getElementById('hint_api_url').textContent = isLlama
+      ? 'The llama.cpp server URL (e.g. http://127.0.0.1:8080)'
+      : 'The oMLX OpenAI-compatible API endpoint';
+    document.getElementById('hint_api_key').textContent = isLlama
+      ? 'Not required for llama.cpp'
+      : 'Set in oMLX dashboard under Settings → API Key';
+    document.getElementById('hint_dashboard_url').textContent = isLlama
+      ? 'Opened in your browser when llama.cpp starts'
+      : 'Opened in your browser when oMLX starts';
+  }
+
+  document.getElementById('server_type').addEventListener('change', updateHints);
 
   async function loadConfig() {
     try {
@@ -195,6 +237,7 @@
       for (const f of fields) {
         document.getElementById(f).value = config[f] || '';
       }
+      updateHints();
     } catch (e) {
       console.error('Failed to load config:', e);
     }

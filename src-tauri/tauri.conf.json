@@ -1,7 +1,7 @@
 {
-  "productName": "oMLX Menubar",
-  "version": "0.1.0",
-  "identifier": "com.carlosporto.omlx-menubar",
+  "productName": "LLM Menubar",
+  "version": "0.2.0",
+  "identifier": "com.carlosporto.llm-menubar",
   "build": {
     "frontendDist": "../src"
   },

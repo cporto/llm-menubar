@@ -1,5 +1,5 @@
 [package]
-name = "omlx-menubar"
+name = "llm-menubar"
 version = "0.1.0"
 edition = "2021"
 
@@ -13,6 +13,7 @@ tokio = { version = "1", default-features = false, features = ["time"] }
 image = { version = "0.25", default-features = false, features = ["png"] }
 open = "5"
 dirs = "6"
+async-trait = "0.1"
 anyhow = "1"
 log = "0.4"
 env_logger = "0.11"
