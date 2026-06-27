@@ -435,15 +435,17 @@
       };
 
       var p = profiles[selectedBackend];
+      var existing = {};
+      try { existing = await invoke('get_config'); } catch(e) {}
       await invoke('save_config', {
         config: {
           server_type: selectedBackend,
           api_url: p.api_url,
-          api_key: '',
+          api_key: existing.api_key || '',
           service_label: p.service_label,
           plist_path: p.plist_path,
           dashboard_url: p.dashboard_url,
-          default_model: '',
+          default_model: existing.default_model || '',
         }
       });
 
