@@ -309,7 +309,7 @@ fn start_and_animate(app_handle: AppHandle, mgr: Arc<ServerManager>, animating: 
 
             tokio::time::sleep(tokio::time::Duration::from_millis(250)).await;
 
-            if frame % 4 == 0 {
+            if frame.is_multiple_of(4) {
                 let status = mgr.check_health().await;
                 if status.running {
                     animating.store(false, Ordering::Relaxed);
@@ -602,7 +602,7 @@ pub fn run() {
                                     let secs = frame / 4;
                                     set_tray_status(&ah, &format!("Loading model… {}s", secs));
                                     tokio::time::sleep(tokio::time::Duration::from_millis(250)).await;
-                                    if frame % 4 == 0 {
+                                    if frame.is_multiple_of(4) {
                                         let status = mgr.check_health().await;
                                         if !status.model.is_empty() {
                                             anim.store(false, Ordering::Relaxed);

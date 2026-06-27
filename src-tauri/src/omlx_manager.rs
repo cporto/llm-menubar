@@ -15,7 +15,6 @@ pub struct ModelInfo {
 pub struct ServerStatus {
     pub running: bool,
     pub model: String,
-    pub pid: Option<u32>,
 }
 
 #[async_trait]
@@ -209,7 +208,7 @@ impl ModelManager for OmlxModelManager {
             Err(_) => false,
         };
         if !running {
-            return ServerStatus { running: false, model: String::new(), pid: None };
+            return ServerStatus { running: false, model: String::new() };
         }
 
         let model = match self.list_models().await {
@@ -220,7 +219,7 @@ impl ModelManager for OmlxModelManager {
             Err(_) => String::new(),
         };
 
-        ServerStatus { running: true, model, pid: None }
+        ServerStatus { running: true, model }
     }
 
     async fn list_models(&self) -> Result<Vec<ModelInfo>> {
@@ -289,14 +288,8 @@ impl LlamacppModelManager {
         Self { api_url: url.to_string(), client: http_client() }
     }
 
-    /// Fetch models, auto-detecting the server mode:
-    /// - Router mode: GET /models returns entries with a `status` field, so we
-    ///   can report per-model loaded state (and load/unload elsewhere).
-    /// - Single-model mode (`llama-server -m`): no router endpoint, so we read
-    ///   GET /v1/models — the one served model is by definition loaded.
     /// Extract the loaded/unloaded state from a model entry's `status` field.
-    /// Router mode returns either a plain string ("loaded") or an object
-    /// with a `value` key ({"value": "loaded", ...}).
+    /// Router mode returns either a plain string or an object with a `value` key.
     fn parse_status(entry: &serde_json::Value) -> Option<bool> {
         if let Some(s) = entry["status"].as_str() {
             return Some(s == "loaded");
@@ -366,7 +359,7 @@ impl ModelManager for LlamacppModelManager {
             Err(_) => false,
         };
         if !running {
-            return ServerStatus { running: false, model: String::new(), pid: None };
+            return ServerStatus { running: false, model: String::new() };
         }
         let model = match self.fetch_models().await {
             Ok(models) => models.iter()
@@ -375,7 +368,7 @@ impl ModelManager for LlamacppModelManager {
                 .unwrap_or_default(),
             Err(_) => String::new(),
         };
-        ServerStatus { running: true, model, pid: None }
+        ServerStatus { running: true, model }
     }
 
     async fn list_models(&self) -> Result<Vec<ModelInfo>> {

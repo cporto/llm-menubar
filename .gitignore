@@ -11,7 +11,5 @@ src-tauri/icons/icon-1024.png
 # IDE
 .vscode/
 .idea/
-tray-green.png
-tray-red.png
-tray-yellow.png
-badge.rs
+# Session handoff (local working doc)
+SESSION_HANDOFF.md
