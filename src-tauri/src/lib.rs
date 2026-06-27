@@ -5,13 +5,14 @@ use tauri::{
     image::Image,
 };
 use tauri_plugin_autostart::{MacosLauncher, AutoLaunchManager};
+use tauri_plugin_dialog::DialogExt;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use log::{info, warn};
 
 mod omlx_manager;
 mod config;
-use omlx_manager::ServerManager;
+use omlx_manager::{ServerManager, expand_tilde};
 use config::AppConfig;
 
 const ICON_ON_PNG: &[u8] = include_bytes!("../icons/tray-on.png");
@@ -220,10 +221,169 @@ fn save_config(config: AppConfig) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn install_service(server_type: String, models_dir: String) -> Result<String, String> {
+    let models_path = std::path::Path::new(&models_dir);
+    if !models_path.exists() || !models_path.is_dir() {
+        return Err(format!("Directory not found: {}", models_dir));
+    }
+
+    let home = dirs::home_dir().ok_or("Could not determine home directory")?;
+
+    let (label, bin, args, port, plist_name, log_name) = match server_type.as_str() {
+        "llamacpp" => {
+            let bin = find_binary(&["llama-server"])
+                .unwrap_or_else(|| "/opt/homebrew/bin/llama-server".to_string());
+            ("com.llama.server", bin, format!(
+                "        <string>--models-dir</string>\n        <string>{}</string>\n        <string>-ngl</string>\n        <string>999</string>\n        <string>--models-max</string>\n        <string>1</string>\n        <string>--cont-batching</string>",
+                escape_xml(&models_dir)
+            ), "8080", "com.llama.server.plist", "llama-server.log")
+        }
+        _ => {
+            let bin = find_binary(&["omlx"])
+                .unwrap_or_else(|| "/opt/homebrew/bin/omlx".to_string());
+            ("ai.omlx.server", bin, format!(
+                "        <string>serve</string>\n        <string>--models-path</string>\n        <string>{}</string>",
+                escape_xml(&models_dir)
+            ), "8000", "ai.omlx.server.plist", "omlx-server.log")
+        }
+    };
+
+    let plist_path = home.join("Library/LaunchAgents").join(plist_name);
+    let log_path = home.join("Library/Logs").join(log_name);
+
+    let plist = format!(r#"<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>{label}</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>{bin}</string>
+{args}
+        <string>--host</string>
+        <string>127.0.0.1</string>
+        <string>--port</string>
+        <string>{port}</string>
+    </array>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    </dict>
+    <key>RunAtLoad</key>
+    <false/>
+    <key>KeepAlive</key>
+    <false/>
+    <key>StandardOutPath</key>
+    <string>{log}</string>
+    <key>StandardErrorPath</key>
+    <string>{log}</string>
+</dict>
+</plist>"#, label=label, bin=bin, args=args, port=port, log=log_path.display());
+
+    std::fs::write(&plist_path, plist).map_err(|e| format!("Failed to write plist: {}", e))?;
+    Ok(plist_path.to_string_lossy().into_owned())
+}
+
+fn escape_xml(s: &str) -> String {
+    s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;")
+}
+
+fn find_binary(names: &[&str]) -> Option<String> {
+    let search_dirs = ["/opt/homebrew/bin", "/usr/local/bin"];
+    for name in names {
+        for dir in &search_dirs {
+            let p = format!("{}/{}", dir, name);
+            if std::path::Path::new(&p).exists() { return Some(p); }
+        }
+        if let Ok(o) = std::process::Command::new("which").arg(name).output() {
+            if o.status.success() {
+                return Some(String::from_utf8_lossy(&o.stdout).trim().to_string());
+            }
+        }
+    }
+    None
+}
+
+#[tauri::command]
+fn check_backend_setup(server_type: String) -> Result<serde_json::Value, String> {
+    let home = dirs::home_dir().unwrap_or_default();
+    let (has_binary, plist_exists, install_hint) = match server_type.as_str() {
+        "llamacpp" => (
+            find_binary(&["llama-server"]).is_some(),
+            home.join("Library/LaunchAgents/com.llama.server.plist").exists(),
+            "brew install llama.cpp",
+        ),
+        _ => (
+            find_binary(&["omlx"]).is_some(),
+            home.join("Library/LaunchAgents/ai.omlx.server.plist").exists(),
+            "brew install omlx",
+        ),
+    };
+    Ok(serde_json::json!({
+        "has_binary": has_binary,
+        "plist_exists": plist_exists,
+        "install_hint": install_hint,
+    }))
+}
+
+#[tauri::command]
 fn close_settings(app_handle: AppHandle) {
     if let Some(win) = app_handle.get_webview_window("settings") {
         win.close().ok();
     }
+}
+
+#[tauri::command]
+fn start_dragging(window: tauri::WebviewWindow) -> Result<(), String> {
+    window.start_dragging().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn open_setup_wizard(app_handle: AppHandle) {
+    open_setup(&app_handle);
+}
+
+#[tauri::command]
+fn close_setup(app_handle: AppHandle) {
+    if let Some(win) = app_handle.get_webview_window("setup") {
+        win.close().ok();
+    }
+    app_handle.restart();
+}
+
+#[tauri::command]
+async fn pick_folder(app_handle: AppHandle) -> Result<Option<String>, String> {
+    let path = app_handle.dialog().file().blocking_pick_folder();
+    Ok(path.map(|p| p.to_string()))
+}
+
+fn open_setup(app_handle: &AppHandle) {
+    if let Some(win) = app_handle.get_webview_window("setup") {
+        win.show().ok();
+        win.set_focus().ok();
+        return;
+    }
+    let _win = tauri::WebviewWindowBuilder::new(
+        app_handle,
+        "setup",
+        tauri::WebviewUrl::App("setup.html".into()),
+    )
+    .title("LLM Menubar — Setup")
+    .inner_size(420.0, 500.0)
+    .resizable(false)
+    .minimizable(false)
+    .maximizable(false)
+    .closable(false)
+    .decorations(false)
+    .always_on_top(true)
+    .transparent(true)
+    .visible(true)
+    .focused(true)
+    .build()
+    .ok();
 }
 
 fn open_settings(app_handle: &AppHandle) {
@@ -238,7 +398,7 @@ fn open_settings(app_handle: &AppHandle) {
         tauri::WebviewUrl::App("settings.html".into()),
     )
     .title("LLM Menubar — Settings")
-    .inner_size(420.0, 650.0)
+    .inner_size(420.0, 780.0)
     .resizable(false)
     .minimizable(false)
     .maximizable(false)
@@ -359,11 +519,12 @@ pub fn run() {
     let switching = Arc::new(AtomicBool::new(false));
 
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![get_config, save_config, close_settings])
+        .invoke_handler(tauri::generate_handler![get_config, save_config, close_settings, close_setup, open_setup_wizard, pick_folder, install_service, check_backend_setup, start_dragging])
         .plugin(tauri_plugin_autostart::init(
             MacosLauncher::LaunchAgent,
             None,
         ))
+        .plugin(tauri_plugin_dialog::init())
         .setup(move |app| {
             let status_item = MenuItemBuilder::with_id("status", "○  Stopped")
                 .enabled(false)
@@ -628,10 +789,18 @@ pub fn run() {
 
             let app_handle = app.handle().clone();
             let mgr = manager_for_setup.clone();
+            let plist_path = expand_tilde(&cfg.plist_path);
+            let plist_exists = std::path::Path::new(&plist_path).exists();
+
             tauri::async_runtime::spawn({
                 let ah = app_handle.clone();
                 let m = mgr.clone();
                 async move {
+                    if !plist_exists && m.is_local {
+                        set_tray_status(&ah, "Setup required");
+                        open_setup(&ah);
+                        return;
+                    }
                     if m.is_local {
                         set_tray_status(&ah, "Checking server…");
                     }

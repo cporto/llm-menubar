@@ -494,7 +494,7 @@ fn display_id(raw: &str) -> String {
 
 /// Expand a leading `~/` to the user's home dir. launchctl receives the plist
 /// path as a raw argument and does not perform shell tilde expansion.
-fn expand_tilde(path: &str) -> String {
+pub fn expand_tilde(path: &str) -> String {
     if let Some(rest) = path.strip_prefix("~/") {
         if let Some(home) = dirs::home_dir() {
             return home.join(rest).to_string_lossy().into_owned();

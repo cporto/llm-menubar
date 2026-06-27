@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LLM Menubar — Setup</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    height: 100%;
+    overflow: hidden;
+    background: transparent;
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+    font-size: 13px;
+    color: #e0e0e0;
+    display: flex;
+    flex-direction: column;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  .window {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: #1e1e1e;
+    border-radius: 12px;
+    border: 1px solid #333;
+    overflow: hidden;
+    margin: 1px;
+  }
+
+  .titlebar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 36px;
+    flex-shrink: 0;
+    cursor: grab;
+    border-bottom: 1px solid #2a2a2a;
+    font-size: 12px;
+    font-weight: 500;
+    color: #888;
+  }
+
+  .titlebar:active { cursor: grabbing; }
+
+  .content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 32px 32px 24px;
+  }
+
+  .step { display: none; flex-direction: column; flex: 1; }
+  .step.active { display: flex; }
+
+  h2 {
+    font-family: "SF Pro Display", -apple-system, system-ui, sans-serif;
+    font-size: 28px;
+    font-weight: 800;
+    font-stretch: condensed;
+    letter-spacing: -0.5px;
+    color: #fff;
+    margin-bottom: 12px;
+  }
+
+  .subtitle {
+    font-size: 20px;
+    color: #ccc;
+    line-height: 1.5;
+    margin-bottom: 20px;
+  }
+
+  .backend-buttons {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+
+  .backend-btn {
+    flex: 1;
+    padding: 20px 16px;
+    background: #2a2a2a;
+    border: 2px solid #3a3a3a;
+    border-radius: 10px;
+    cursor: pointer;
+    text-align: center;
+    transition: border-color 0.15s, background 0.15s;
+  }
+
+  .backend-btn:hover { background: #333; border-color: #555; }
+  .backend-btn.selected { border-color: #5a9fff; background: #1a2a3a; }
+
+  .backend-btn .name {
+    font-size: 18px;
+    font-weight: 700;
+    color: #fff;
+    margin-bottom: 4px;
+  }
+
+  .backend-btn .desc {
+    font-size: 13px;
+    color: #999;
+  }
+
+  .install-cmd {
+    font-family: "SF Mono", Menlo, monospace;
+    font-size: 14px;
+    background: #2a2a2a;
+    border: 1px solid #3a3a3a;
+    border-radius: 6px;
+    padding: 10px 14px;
+    color: #5a9fff;
+    margin-bottom: 12px;
+  }
+
+  .check-status {
+    font-size: 14px;
+    min-height: 18px;
+    margin-bottom: 12px;
+  }
+
+  .check-status.ok { color: #6c6; }
+  .check-status.err { color: #f66; }
+
+  .folder-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 6px;
+  }
+
+  .folder-row input {
+    flex: 1;
+    padding: 7px 10px;
+    font-size: 13px;
+    font-family: "SF Mono", Menlo, monospace;
+    color: #e0e0e0;
+    background: #2a2a2a;
+    border: 1px solid #3a3a3a;
+    border-radius: 6px;
+    outline: none;
+    -webkit-user-select: text;
+    user-select: text;
+  }
+
+  .folder-row input:focus { border-color: #5a9fff; }
+
+  .btn-browse {
+    padding: 7px 14px;
+    font-size: 13px;
+    background: #2a2a2a;
+    border: 1px solid #3a3a3a;
+    border-radius: 6px;
+    color: #e0e0e0;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+
+  .btn-browse:hover { background: #333; }
+
+  .hint {
+    font-size: 13px;
+    color: #666;
+  }
+
+  .spacer { flex: 1; }
+
+  .nav {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 24px;
+  }
+
+  .btn {
+    padding: 10px 24px;
+    font-size: 14px;
+    border-radius: 6px;
+    border: 1px solid #3a3a3a;
+    cursor: pointer;
+    font-family: inherit;
+    font-weight: 500;
+  }
+
+  .btn-secondary {
+    background: #2a2a2a;
+    color: #e0e0e0;
+  }
+
+  .btn-secondary:hover { background: #333; }
+
+  .btn-primary {
+    background: #5a9fff;
+    color: #fff;
+    border-color: #5a9fff;
+  }
+
+  .btn-primary:hover { background: #4a8fee; }
+  .btn-primary:disabled { opacity: 0.4; cursor: default; }
+
+  .skip-link {
+    font-size: 13px;
+    color: #888;
+    text-decoration: underline;
+    cursor: pointer;
+  }
+
+  .skip-link:hover { color: #aaa; }
+
+  .done-check {
+    font-size: 84px;
+    color: #6c6;
+    vertical-align: baseline;
+    position: relative;
+    top: 8px;
+    margin-left: 10px;
+  }
+
+  .step-dots {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    margin-bottom: 24px;
+  }
+
+  .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #3a3a3a;
+    transition: background 0.2s;
+  }
+
+  .dot.active { background: #5a9fff; }
+  .dot.done { background: #6c6; }
+</style>
+</head>
+<body>
+  <div class="window">
+  <div class="titlebar" >Setup</div>
+
+  <div class="content">
+    <div class="step-dots">
+      <div class="dot active" data-dot="0"></div>
+      <div class="dot" data-dot="1"></div>
+      <div class="dot" data-dot="2"></div>
+      <div class="dot" data-dot="3"></div>
+    </div>
+
+    <!-- Step 0: Welcome -->
+    <div class="step active" data-step="0">
+      <h2>Welcome to LLM Menubar</h2>
+      <p class="subtitle">This app manages your local LLM server from the menu bar. Start, stop, and switch models — all without touching the terminal.</p>
+      <p class="subtitle">Let's get your server set up. It only takes a minute.</p>
+      <div class="spacer"></div>
+      <div class="nav">
+        <button class="btn btn-primary" id="btn-start">Get Started</button>
+      </div>
+    </div>
+
+    <!-- Step 1: Pick backend -->
+    <div class="step" data-step="1">
+      <h2>Choose your backend</h2>
+      <p class="subtitle">Which LLM server do you use?</p>
+      <div class="backend-buttons">
+        <div class="backend-btn" data-backend="omlx">
+          <div class="name">oMLX</div>
+          <div class="desc">Apple Silicon optimized</div>
+        </div>
+        <div class="backend-btn" data-backend="llamacpp">
+          <div class="name">llama.cpp</div>
+          <div class="desc">Cross-platform</div>
+        </div>
+      </div>
+      <div class="spacer"></div>
+      <div class="nav">
+        <button class="btn btn-secondary" id="btn-back1">Back</button>
+        <button class="btn btn-primary" id="step1Next" disabled>Next</button>
+      </div>
+    </div>
+
+    <!-- Step 2: Binary check -->
+    <div class="step" data-step="2">
+      <h2>Checking installation</h2>
+      <p class="subtitle" id="binarySubtitle"></p>
+      <div id="binaryInstall" style="display:none;">
+        <p class="subtitle">Install it with:</p>
+        <div class="install-cmd" id="installCmd"></div>
+        <p class="subtitle">Then click Check Again.</p>
+      </div>
+      <div class="check-status" id="binaryStatus"></div>
+      <div id="skipBinary" style="display:none; margin-top:8px;"><a href="#" id="skipBinaryLink" class="skip-link">I'll install it later — continue anyway</a></div>
+      <div class="spacer"></div>
+      <div class="nav">
+        <button class="btn btn-secondary" id="btn-back2">Back</button>
+        <button class="btn btn-secondary" id="checkAgainBtn" style="display:none;">Check Again</button>
+        <button class="btn btn-primary" id="step2Next" disabled>Next</button>
+      </div>
+    </div>
+
+    <!-- Step 3: Models directory -->
+    <div class="step" data-step="3">
+      <h2>Models directory</h2>
+      <p class="subtitle">Where are your model files stored?</p>
+      <div class="folder-row">
+        <input type="text" id="modelsDir" placeholder="/path/to/your/models">
+        <button class="btn-browse" id="browseBtn">Browse…</button>
+      </div>
+      <div class="hint">Folder containing your .gguf or MLX model files</div>
+      <div class="check-status" id="modelsStatus"></div>
+      <div class="spacer"></div>
+      <div class="nav">
+        <button class="btn btn-secondary" id="btn-back3">Back</button>
+        <button class="btn btn-primary" id="finishBtn">Finish Setup</button>
+      </div>
+    </div>
+
+    <!-- Step 4: Done -->
+    <div class="step" data-step="4">
+      <h2>You're all set <span class="done-check">✓</span></h2>
+      <p class="subtitle" id="doneSummary"></p>
+      <p class="subtitle" id="otherBackendMsg"></p>
+      <div class="spacer"></div>
+      <div class="nav">
+        <button class="btn btn-secondary" id="btn-other" style="display:none;">Set Up Another Backend</button>
+        <button class="btn btn-primary" id="btn-close">Start Using LLM Menubar</button>
+      </div>
+    </div>
+  </div>
+  </div>
+
+<script>
+  const { invoke } = window.__TAURI__.core;
+  document.querySelector('.titlebar').addEventListener('mousedown', function(e) {
+    if (e.button === 0) invoke('start_dragging');
+  });
+
+  let selectedBackend = null;
+
+  function goTo(step) {
+    document.querySelector('.step.active').classList.remove('active');
+    document.querySelector('[data-step="' + step + '"]').classList.add('active');
+    document.querySelectorAll('.dot').forEach(function(d, i) {
+      d.classList.toggle('active', i === step);
+      d.classList.toggle('done', i < step);
+    });
+    if (step === 2) checkBinary();
+    if (step === 3) prefillModelsDir();
+  }
+
+  function selectBackend(type) {
+    selectedBackend = type;
+    document.querySelectorAll('.backend-btn').forEach(function(b) { b.classList.remove('selected'); });
+    document.querySelector('[data-backend="' + type + '"]').classList.add('selected');
+    document.getElementById('step1Next').disabled = false;
+  }
+
+  async function checkBinary() {
+    var status = document.getElementById('binaryStatus');
+    var install = document.getElementById('binaryInstall');
+    var nextBtn = document.getElementById('step2Next');
+    var checkBtn = document.getElementById('checkAgainBtn');
+    var subtitle = document.getElementById('binarySubtitle');
+
+    var name = selectedBackend === 'llamacpp' ? 'llama.cpp' : 'oMLX';
+    subtitle.textContent = 'Looking for ' + name + ' on your system…';
+    status.textContent = 'Checking…';
+    status.className = 'check-status';
+
+    try {
+      var s = await invoke('check_backend_setup', { serverType: selectedBackend });
+      if (s.has_binary) {
+        status.textContent = name + ' found ✓';
+        status.className = 'check-status ok';
+        install.style.display = 'none';
+        checkBtn.style.display = 'none';
+        nextBtn.disabled = false;
+      } else {
+        status.textContent = name + ' not found';
+        status.className = 'check-status err';
+        document.getElementById('installCmd').textContent = s.install_hint;
+        install.style.display = 'block';
+        checkBtn.style.display = 'inline-block';
+        document.getElementById('skipBinary').style.display = 'block';
+        nextBtn.disabled = true;
+      }
+    } catch (e) {
+      status.textContent = 'Error: ' + e;
+      status.className = 'check-status err';
+    }
+  }
+
+  async function browseFolder() {
+    try {
+      var path = await invoke('pick_folder');
+      if (path) document.getElementById('modelsDir').value = path;
+    } catch (e) {
+      console.error('Folder picker error:', e);
+    }
+  }
+
+  async function finish() {
+    var dir = document.getElementById('modelsDir').value.trim();
+    var status = document.getElementById('modelsStatus');
+    if (!dir) {
+      status.textContent = 'Please choose a models directory.';
+      status.className = 'check-status err';
+      return;
+    }
+
+    status.textContent = 'Setting up…';
+    status.className = 'check-status';
+
+    try {
+      await invoke('install_service', { serverType: selectedBackend, modelsDir: dir });
+
+      var profiles = {
+        omlx: {
+          api_url: 'http://127.0.0.1:8000/v1',
+          service_label: 'ai.omlx.server',
+          plist_path: '~/Library/LaunchAgents/ai.omlx.server.plist',
+          dashboard_url: 'http://127.0.0.1:8000/admin',
+        },
+        llamacpp: {
+          api_url: 'http://127.0.0.1:8080',
+          service_label: 'com.llama.server',
+          plist_path: '~/Library/LaunchAgents/com.llama.server.plist',
+          dashboard_url: 'http://127.0.0.1:8080',
+        },
+      };
+
+      var p = profiles[selectedBackend];
+      await invoke('save_config', {
+        config: {
+          server_type: selectedBackend,
+          api_url: p.api_url,
+          api_key: '',
+          service_label: p.service_label,
+          plist_path: p.plist_path,
+          dashboard_url: p.dashboard_url,
+          default_model: '',
+        }
+      });
+
+      var name = selectedBackend === 'llamacpp' ? 'llama.cpp' : 'oMLX';
+      var otherName = selectedBackend === 'llamacpp' ? 'oMLX' : 'llama.cpp';
+      document.getElementById('doneSummary').textContent =
+        name + ' is configured and ready. The app will start your server and load models automatically.';
+      var otherBtn = document.getElementById('btn-other');
+      otherBtn.textContent = 'Set Up ' + otherName;
+      otherBtn.style.display = 'inline-block';
+      document.getElementById('otherBackendMsg').textContent =
+        'You can also set up ' + otherName + ' and switch between them anytime.';
+      goTo(4);
+    } catch (e) {
+      status.textContent = 'Error: ' + e;
+      status.className = 'check-status err';
+    }
+  }
+
+  // Wire up all buttons
+  document.getElementById('btn-start').addEventListener('click', function() { goTo(1); });
+  document.getElementById('btn-back1').addEventListener('click', function() { goTo(0); });
+  document.getElementById('step1Next').addEventListener('click', function() { goTo(2); });
+  document.getElementById('btn-back2').addEventListener('click', function() { goTo(1); });
+  document.getElementById('checkAgainBtn').addEventListener('click', function() { checkBinary(); });
+  document.getElementById('skipBinaryLink').addEventListener('click', function(e) { e.preventDefault(); goTo(3); });
+  document.getElementById('step2Next').addEventListener('click', function() { goTo(3); });
+  document.getElementById('btn-back3').addEventListener('click', function() { goTo(2); });
+  document.getElementById('browseBtn').addEventListener('click', function() { browseFolder(); });
+  document.getElementById('finishBtn').addEventListener('click', function() { finish(); });
+  document.getElementById('btn-close').addEventListener('click', function() { invoke('close_setup'); });
+
+  document.getElementById('btn-other').addEventListener('click', function() {
+    var otherBackend = selectedBackend === 'llamacpp' ? 'omlx' : 'llamacpp';
+    selectedBackend = null;
+    document.getElementById('step1Next').disabled = true;
+    document.querySelectorAll('.backend-btn').forEach(function(b) { b.classList.remove('selected'); });
+    document.getElementById('modelsDir').value = '';
+    document.getElementById('modelsStatus').textContent = '';
+    selectBackend(otherBackend);
+    goTo(1);
+  });
+
+  document.querySelectorAll('.backend-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() { selectBackend(btn.dataset.backend); });
+  });
+
+  function prefillModelsDir() {
+    var defaults = { omlx: '~/Documents/MLX', llamacpp: '~/Documents/Models' };
+    var input = document.getElementById('modelsDir');
+    if (!input.value) input.value = defaults[selectedBackend] || '';
+  }
+</script>
+</body>
+</html>

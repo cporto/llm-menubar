@@ -1,6 +1,6 @@
 {
   "productName": "LLM Menubar",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "identifier": "com.carlosporto.llm-menubar",
   "build": {
     "frontendDist": "../src"

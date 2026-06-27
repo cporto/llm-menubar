@@ -14,6 +14,7 @@ A lightweight macOS menu bar app for managing local LLM servers. Supports [oMLX]
 - **llama.cpp router mode** — discovers all `.gguf` models in a directory, load/unload on demand
 - **llama.cpp single-model mode** — works with `llama-server -m` setups too (auto-detected)
 - **Dashboard shortcut** — opens the server's web UI in your browser on start
+- **First-run setup wizard** — guided setup on first launch: pick your backend, check installation, choose models folder, done
 - **Settings panel** — configure everything in-app (or switch backends directly from the menu)
 - **Launch at Login** — toggle from the menu
 - **Smart defaults** — switching backends prefills the right ports, labels, and paths
@@ -22,8 +23,8 @@ A lightweight macOS menu bar app for managing local LLM servers. Supports [oMLX]
 
 - macOS (Apple Silicon)
 - One or both LLM servers installed:
-  - [oMLX](https://github.com/nicehash/omlx) with a launchd plist
-  - [llama.cpp](https://github.com/ggml-org/llama.cpp) (`brew install llama.cpp`) with a launchd plist
+  - [oMLX](https://github.com/nicehash/omlx) — `brew install omlx`
+  - [llama.cpp](https://github.com/ggml-org/llama.cpp) — `brew install llama.cpp`
 - Rust toolchain + Tauri CLI (for building from source only)
 
 ## Install
@@ -46,6 +47,14 @@ cargo tauri build
 The `.app` bundle lands in `src-tauri/target/release/bundle/macos/`.
 
 ## Setup
+
+On first launch, a setup wizard walks you through everything: pick your backend (oMLX or llama.cpp), verify it's installed, choose your models folder, and the app generates the launchd plist automatically.
+
+You can re-run the wizard anytime from **Preferences… → Run Setup Wizard…**, or set up both backends and switch between them from the menu.
+
+### Manual setup
+
+If you prefer to configure things yourself, or already have a launchd plist:
 
 ### oMLX
 

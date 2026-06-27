@@ -52,7 +52,9 @@
   .content {
     flex: 1;
     padding: 16px 24px 20px;
-    overflow: hidden;
+    overflow-y: auto;
+    -webkit-user-select: none;
+    user-select: none;
   }
 
   .field {
@@ -181,7 +183,7 @@
 </head>
 <body>
   <div class="window">
-  <div class="titlebar" data-tauri-drag-region>Settings</div>
+  <div class="titlebar">Settings</div>
 
   <div class="content">
     <div class="field">
@@ -232,6 +234,8 @@
     </div>
 
     <div class="buttons">
+      <button class="btn-close" id="setupBtn">Run Setup Wizard…</button>
+      <div style="flex:1"></div>
       <button class="btn-close" id="closeBtn">Close</button>
       <button class="btn-save" id="saveBtn">Save</button>
     </div>
@@ -241,6 +245,9 @@
 
 <script>
   const { invoke } = window.__TAURI__.core;
+  document.querySelector('.titlebar').addEventListener('mousedown', function(e) {
+    if (e.button === 0) invoke('start_dragging');
+  });
 
   const fields = ['server_type', 'api_url', 'api_key', 'service_label', 'plist_path', 'dashboard_url', 'default_model'];
 
@@ -289,11 +296,6 @@
       : 'Opened in your browser when oMLX starts';
   }
 
-  document.getElementById('server_type').addEventListener('change', (e) => {
-    applyProfileDefaults(e.target.value);
-    updateHints();
-  });
-
   async function loadConfig() {
     try {
       const config = await invoke('get_config');
@@ -325,6 +327,15 @@
 
   document.getElementById('closeBtn').addEventListener('click', () => {
     invoke('close_settings');
+  });
+
+  document.getElementById('setupBtn').addEventListener('click', function() {
+    invoke('open_setup_wizard');
+  });
+
+  document.getElementById('server_type').addEventListener('change', (e) => {
+    applyProfileDefaults(e.target.value);
+    updateHints();
   });
 
   loadConfig();
