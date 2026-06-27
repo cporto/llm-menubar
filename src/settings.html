@@ -172,6 +172,25 @@
 
   .btn-save:hover { background: #4a8fee; }
 
+  .btn-setup {
+    background: #2a2a2a;
+    color: #e0e0e0;
+    font-size: 12px;
+    border: 1px solid #3a3a3a;
+    border-radius: 6px;
+    padding: 5px 12px;
+    cursor: pointer;
+  }
+
+  .btn-setup:hover { background: #333; }
+
+  .version {
+    font-size: 13px;
+    color: #ccc;
+    text-align: center;
+    margin-top: 16px;
+  }
+
   .status {
     font-size: 11px;
     color: #6c6;
@@ -234,12 +253,13 @@
     </div>
 
     <div class="buttons">
-      <button class="btn-close" id="setupBtn">Run Setup Wizard…</button>
+      <button class="btn-setup" id="setupBtn">Run Setup Wizard…</button>
       <div style="flex:1"></div>
       <button class="btn-close" id="closeBtn">Close</button>
       <button class="btn-save" id="saveBtn">Save</button>
     </div>
     <div class="status" id="status"></div>
+    <div class="version">LLM Menubar v0.2.1</div>
   </div>
   </div>
 
