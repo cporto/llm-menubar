@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>oMLX Menubar — Settings</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    height: 100%;
+    overflow: hidden;
+    background: transparent;
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+    font-size: 13px;
+    color: #e0e0e0;
+    display: flex;
+    flex-direction: column;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  .window {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: #1e1e1e;
+    border-radius: 12px;
+    border: 1px solid #333;
+    overflow: hidden;
+    margin: 1px;
+  }
+
+  .titlebar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 36px;
+    flex-shrink: 0;
+    cursor: grab;
+    border-bottom: 1px solid #2a2a2a;
+    font-size: 12px;
+    font-weight: 500;
+    color: #888;
+  }
+
+  .titlebar:active { cursor: grabbing; }
+
+  .content {
+    flex: 1;
+    padding: 16px 24px 20px;
+    overflow: hidden;
+  }
+
+  .field {
+    margin-bottom: 14px;
+  }
+
+  label {
+    display: block;
+    font-size: 11px;
+    font-weight: 500;
+    color: #999;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 4px;
+  }
+
+  input[type="text"], input[type="password"] {
+    width: 100%;
+    padding: 7px 10px;
+    font-size: 13px;
+    font-family: "SF Mono", Menlo, monospace;
+    color: #e0e0e0;
+    background: #2a2a2a;
+    border: 1px solid #3a3a3a;
+    border-radius: 6px;
+    outline: none;
+    transition: border-color 0.15s;
+    -webkit-user-select: text;
+    user-select: text;
+  }
+
+  input:focus {
+    border-color: #5a9fff;
+  }
+
+  .hint {
+    font-size: 11px;
+    color: #555;
+    margin-top: 2px;
+  }
+
+  .buttons {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 20px;
+  }
+
+  button {
+    padding: 6px 16px;
+    font-size: 13px;
+    border-radius: 6px;
+    border: 1px solid #3a3a3a;
+    cursor: pointer;
+    font-family: inherit;
+  }
+
+  .btn-close {
+    background: #2a2a2a;
+    color: #e0e0e0;
+  }
+
+  .btn-close:hover { background: #333; }
+
+  .btn-save {
+    background: #5a9fff;
+    color: #fff;
+    border-color: #5a9fff;
+    font-weight: 500;
+  }
+
+  .btn-save:hover { background: #4a8fee; }
+
+  .status {
+    font-size: 11px;
+    color: #6c6;
+    margin-top: 6px;
+    text-align: right;
+    min-height: 16px;
+  }
+</style>
+</head>
+<body>
+  <div class="window">
+  <div class="titlebar" data-tauri-drag-region>Settings</div>
+
+  <div class="content">
+    <div class="field">
+      <label>API URL</label>
+      <input type="text" id="api_url" placeholder="http://127.0.0.1:8000/v1">
+      <div class="hint">The oMLX OpenAI-compatible API endpoint</div>
+    </div>
+
+    <div class="field">
+      <label>API Key</label>
+      <input type="password" id="api_key" placeholder="Leave empty if not required">
+      <div class="hint">Set in oMLX dashboard under Settings → API Key</div>
+    </div>
+
+    <div class="field">
+      <label>Service Label</label>
+      <input type="text" id="service_label" placeholder="ai.omlx.server">
+      <div class="hint">The launchd service name from your plist</div>
+    </div>
+
+    <div class="field">
+      <label>Plist Path</label>
+      <input type="text" id="plist_path" placeholder="~/Library/LaunchAgents/ai.omlx.server.plist">
+      <div class="hint">Full path to the launchd plist file</div>
+    </div>
+
+    <div class="field">
+      <label>Dashboard URL</label>
+      <input type="text" id="dashboard_url" placeholder="http://127.0.0.1:8000/admin">
+      <div class="hint">Opened in your browser when oMLX starts</div>
+    </div>
+
+    <div class="field">
+      <label>Default Model</label>
+      <input type="text" id="default_model" placeholder="Auto (first available)">
+      <div class="hint">Auto-loaded on start. Leave empty to load the first available model.</div>
+    </div>
+
+    <div class="buttons">
+      <button class="btn-close" id="closeBtn">Close</button>
+      <button class="btn-save" id="saveBtn">Save</button>
+    </div>
+    <div class="status" id="status"></div>
+  </div>
+  </div>
+
+<script>
+  const { invoke } = window.__TAURI__.core;
+
+  const fields = ['api_url', 'api_key', 'service_label', 'plist_path', 'dashboard_url', 'default_model'];
+
+  async function loadConfig() {
+    try {
+      const config = await invoke('get_config');
+      for (const f of fields) {
+        document.getElementById(f).value = config[f] || '';
+      }
+    } catch (e) {
+      console.error('Failed to load config:', e);
+    }
+  }
+
+  document.getElementById('saveBtn').addEventListener('click', async () => {
+    const config = {};
+    for (const f of fields) {
+      config[f] = document.getElementById(f).value;
+    }
+    try {
+      await invoke('save_config', { config });
+      document.getElementById('status').textContent = 'Saved — restart the app to apply changes.';
+      setTimeout(() => {
+        document.getElementById('status').textContent = '';
+      }, 4000);
+    } catch (e) {
+      document.getElementById('status').textContent = 'Error: ' + e;
+      document.getElementById('status').style.color = '#f66';
+    }
+  });
+
+  document.getElementById('closeBtn').addEventListener('click', () => {
+    invoke('close_settings');
+  });
+
+  loadConfig();
+</script>
+</body>
+</html>

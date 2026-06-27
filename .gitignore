@@ -1,0 +1,17 @@
+# Build artifacts
+src-tauri/target/
+
+# macOS
+.DS_Store
+
+# Icon build artifacts
+src-tauri/icons/icon.iconset/
+src-tauri/icons/icon-1024.png
+
+# IDE
+.vscode/
+.idea/
+tray-green.png
+tray-red.png
+tray-yellow.png
+badge.rs
